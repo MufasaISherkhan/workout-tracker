@@ -17,12 +17,38 @@
         const { useState, useEffect } = React;
         const { Plus, Trash2, Calendar, Target, TrendingUp, Save, Download, Upload } = lucideReact;
 
+        // Safe localStorage wrapper
+        const safeLocalStorage = {
+            getItem: (key) => {
+                try {
+                    if (typeof Storage !== 'undefined' && window.localStorage) {
+                        return localStorage.getItem(key);
+                    }
+                } catch (e) {
+                    console.warn('localStorage not available:', e);
+                }
+                return null;
+            },
+            setItem: (key, value) => {
+                try {
+                    if (typeof Storage !== 'undefined' && window.localStorage) {
+                        localStorage.setItem(key, value);
+                        return true;
+                    }
+                } catch (e) {
+                    console.warn('Could not save to localStorage:', e);
+                }
+                return false;
+            }
+        };
+
         const WorkoutTracker = () => {
           const [workouts, setWorkouts] = useState(() => {
             try {
-              const saved = localStorage.getItem('workoutTrackerData');
+              const saved = safeLocalStorage.getItem('workoutTrackerData');
               return saved ? JSON.parse(saved) : [];
-            } catch {
+            } catch (e) {
+              console.warn('Error loading saved data:', e);
               return [];
             }
           });
@@ -32,12 +58,9 @@
           const [newExercise, setNewExercise] = useState({ name: '', sets: [], notes: '' });
           const [showHistory, setShowHistory] = useState(false);
 
+          // Save to localStorage when workouts change
           useEffect(() => {
-            try {
-              localStorage.setItem('workoutTrackerData', JSON.stringify(workouts));
-            } catch (error) {
-              console.warn('Could not save to localStorage:', error);
-            }
+            safeLocalStorage.setItem('workoutTrackerData', JSON.stringify(workouts));
           }, [workouts]);
 
           const exerciseSuggestions = [
@@ -47,16 +70,20 @@
           ];
 
           const exportData = () => {
-            const dataStr = JSON.stringify(workouts, null, 2);
-            const dataBlob = new Blob([dataStr], { type: 'application/json' });
-            const url = URL.createObjectURL(dataBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `workout-data-${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            try {
+              const dataStr = JSON.stringify(workouts, null, 2);
+              const dataBlob = new Blob([dataStr], { type: 'application/json' });
+              const url = URL.createObjectURL(dataBlob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `workout-data-${new Date().toISOString().split('T')[0]}.json`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+            } catch (error) {
+              alert('Error exporting data: ' + error.message);
+            }
           };
 
           const importData = (event) => {
@@ -69,13 +96,17 @@
                   if (Array.isArray(importedWorkouts)) {
                     setWorkouts(importedWorkouts);
                     alert('Data imported successfully!');
+                  } else {
+                    throw new Error('Invalid data format');
                   }
                 } catch (error) {
                   alert('Error importing data. Please check the file format.');
+                  console.error('Import error:', error);
                 }
               };
               reader.readAsText(file);
             }
+            // Clear the input
             event.target.value = '';
           };
 
@@ -218,6 +249,7 @@
                       </div>
                     </div>
 
+                    {/* Add Exercise Form */}
                     <div className="bg-gray-50 rounded-lg p-3 sm:p-4 mb-4">
                       <h3 className="font-medium text-gray-700 mb-3 text-sm sm:text-base">Add Exercise</h3>
                       
@@ -294,6 +326,7 @@
                       </button>
                     </div>
 
+                    {/* Current Exercise List */}
                     {exercises.length > 0 && (
                       <div className="mb-4">
                         <h3 className="font-medium text-gray-700 mb-3 text-sm sm:text-base">Today's Exercises</h3>
@@ -324,6 +357,7 @@
                       </div>
                     )}
 
+                    {/* Complete Workout Button */}
                     {exercises.length > 0 && (
                       <button
                         onClick={saveWorkout}
@@ -336,6 +370,7 @@
                   </div>
                 )}
 
+                {/* History Section */}
                 {showHistory && (
                   <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
                     <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Workout History</h2>
@@ -387,6 +422,7 @@
                   </div>
                 )}
 
+                {/* Quick Stats */}
                 {!currentWorkout && workouts.length > 0 && (
                   <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 mt-4 sm:mt-6">
                     <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Quick Stats</h2>
